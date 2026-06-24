@@ -48,6 +48,10 @@ def main():
                         help="摩擦係数 0.0〜1.0 (デフォルト: 0.5)")
     parser.add_argument("--restitution", type=float, default=0.3,
                         help="反発係数 0.0〜1.0 — 大きいほどよく跳ねる (デフォルト: 0.3)")
+    parser.add_argument("--impact-x", type=float, default=0.0,
+                        help="衝突点 X 座標 -1.0〜1.0（glass のみ有効、デフォルト: 0.0 = 中心）")
+    parser.add_argument("--impact-y", type=float, default=0.0,
+                        help="衝突点 Y 座標 -1.0〜1.0（glass のみ有効、デフォルト: 0.0 = 中心）")
     parser.add_argument("--blender", default="blender",
                         help="Blenderバイナリのパス (デフォルト: blender)")
 
@@ -56,6 +60,10 @@ def main():
     # 値の範囲チェック
     if not 0.0 <= args.fragility <= 1.0:
         parser.error("--fragility は 0.0〜1.0 の範囲で指定してください")
+    if not -1.0 <= args.impact_x <= 1.0:
+        parser.error("--impact-x は -1.0〜1.0 の範囲で指定してください")
+    if not -1.0 <= args.impact_y <= 1.0:
+        parser.error("--impact-y は -1.0〜1.0 の範囲で指定してください")
     if not 0.0 <= args.friction <= 1.0:
         parser.error("--friction は 0.0〜1.0 の範囲で指定してください")
     if not 0.0 <= args.restitution <= 1.0:
@@ -79,6 +87,8 @@ def main():
         "fragility": args.fragility,
         "friction": args.friction,
         "restitution": args.restitution,
+        "impact_x": args.impact_x,
+        "impact_y": args.impact_y,
     }
 
     script = Path(__file__).parent / "blender_scripts" / "generate_and_fracture.py"

@@ -9,13 +9,17 @@ def generate_glass(params: dict) -> bpy.types.Object:
     size = params.get("size", 1.0)
     thickness = 0.04 * size
 
+    # Blender Z-up: X=幅, Y=奥行き(薄), Z=高さ
+    # export_yup 後 three.js: X=幅, Y=高さ, Z=奥行き
+    # Z を 0〜height にして地面（Z=0）に接する垂直パネル
+    height = size * 0.8
     bpy.ops.mesh.primitive_cube_add(
         size=1.0,
-        location=(0, 0, 0),
+        location=(0, 0, height * 0.5),  # 中心を高さ半分に
     )
     glass = bpy.context.active_object
     glass.name = "glass_body_tmp"
-    glass.scale = (size, size * 0.6, thickness)
+    glass.scale = (size, thickness, height)
     bpy.ops.object.transform_apply(scale=True)
 
     # マテリアル（ガラス）

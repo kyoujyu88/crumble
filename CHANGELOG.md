@@ -4,6 +4,39 @@
 
 ---
 
+## [0.3.0] — 2026-06-24
+
+### 追加（Added）
+- **フェーズ3: ガラス板（Glass）エンドツーエンドパイプライン**
+  - `blender_scripts/generators/glass.py` — 縦置きガラスパネル（Blender XZ平面、Z-up）生成。透過マテリアル（Alpha=0.3）付き
+  - `blender_scripts/fracture/glass_crack.py` — クモの巣状（スパイダーウェブ）フラクチャ：衝突点から放射状スポーク + 同心リングカット
+  - `pipeline.py` — `--impact-x`・`--impact-y` パラメータ追加（-1.0〜1.0 正規化座標）
+
+### 使い方
+```bash
+# 中心衝突（デフォルト）
+python pipeline.py --type glass --pieces 20 --seed 3 --out output/glass.glb
+
+# 右下1/3あたりに衝突
+python pipeline.py --type glass --pieces 20 --seed 3 --impact-x 0.3 --impact-y -0.2 --out output/glass_offset.glb
+```
+
+### 技術メモ
+- BSP bisect (`bpy.ops.mesh.bisect`) を XZ 平面（法線 Y=0）で適用して縦パネルを正確に分割
+- `apply_glass_fracture` 開始時に `source_obj` を複製することで、`generate_and_fracture.py` が元オブジェクトを削除しても ReferenceError が起きないよう修正
+
+---
+
+## [0.2.0] — 2026-06-24
+
+### 追加（Added）
+- **フェーズ2: 岩（Rock）エンドツーエンドパイプライン**
+  - `blender_scripts/generators/rock.py` — IcoSphere（3段サブディビジョン）+ mathutils.noise による凹凸変形
+  - `python pipeline.py --type rock --pieces 15 --seed 5 --out output/rock.glb` で動作確認済み
+  - Webビューアで岩のクリック破壊・Rapier 物理落下を確認
+
+---
+
 ## [0.1.0] — 2026-06-23
 
 ### 追加（Added）
@@ -54,16 +87,6 @@ Scene
 ---
 
 ## 今後の予定
-
-### [0.2.0] — フェーズ2: 岩（Rock）
-- `generators/rock.py` の完全実装
-- `--type rock` の end-to-end テスト追加
-- 岩特有のマテリアル（表面粗さ・色変化）
-
-### [0.3.0] — フェーズ3: ガラス板（Glass）
-- `fracture/glass_crack.py` の放射状クラック実装
-- `--impact-x`・`--impact-y` パラメータ追加（衝突点指定）
-- ガラスの透過マテリアル（three.js 側も対応）
 
 ### [0.4.0] — フェーズ4: プロンプト解析
 - `prompt_parser.py` 追加
