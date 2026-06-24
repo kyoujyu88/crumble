@@ -4,6 +4,29 @@
 
 ---
 
+## [0.4.0] — 2026-06-24
+
+### 追加（Added）
+- **デスクトップ GUI（`gui.py`）**
+  - tkinter 製。種別・破片数・シード・サイズ・物理パラメータをフォーム／スライダーで設定し「生成」ボタンで GLB を出力
+  - glass 選択時のみ衝突点（impact-x / impact-y）を有効化
+  - Blender パスと最後の設定を `~/.crumble_gui.json` に自動保存
+  - `pipeline.py` を別スレッドで subprocess 実行し、ログをリアルタイム表示（標準ライブラリのみ・追加依存なし）
+- **ビューア内パラメータ調整パネル（`viewer/src/ui/ControlPanel.js`）**
+  - 質量・壊れやすさ・摩擦・反発をスライダーでリアルタイム調整 → 破壊挙動に即反映
+  - 「この設定で壊し直す」ボタンで同じモデルを新パラメータのまま再ロード＆再破壊
+  - オーバーレイ表示もスライダー操作に連動
+  - `R` キーのリセット対象を「現在のソース」に変更（ドロップしたファイルも正しく復元）
+
+### 変更（Changed）
+- `setup.sh` に Linux 用 `python3-tk` の自動インストールを追加（GUI 用、失敗しても続行）
+
+### 修正（Fixed）
+- BSP フォールバックフラクチャ（Cell Fracture アドオン非搭載の Blender 4.2+ / 5.x）で
+  `source_obj` をシャードに含めて返していたことによる `ReferenceError: StructRNA of type Object has been removed` を修正（PR #4）
+
+---
+
 ## [0.3.0] — 2026-06-24
 
 ### 追加（Added）

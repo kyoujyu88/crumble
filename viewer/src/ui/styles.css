@@ -88,6 +88,105 @@ body {
   text-align: center;
 }
 
+/* ---- パラメータ調整パネル ---- */
+#controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  user-select: none;
+}
+
+.ctrl-panel {
+  background: rgba(10, 10, 20, 0.72);
+  border: 1px solid rgba(255, 120, 50, 0.35);
+  border-radius: 10px;
+  color: #ddd;
+  width: 230px;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.ctrl-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ctrl-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ff7043;
+  letter-spacing: 1px;
+}
+
+.ctrl-toggle {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.ctrl-body {
+  padding: 10px 14px 14px;
+}
+
+.ctrl-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ctrl-row label {
+  font-size: 11px;
+  color: #aaa;
+}
+
+.ctrl-row input[type="range"] {
+  width: 100%;
+  accent-color: #ff7043;
+  cursor: pointer;
+}
+
+.ctrl-val {
+  font-size: 11px;
+  color: #fff;
+  font-weight: 600;
+  text-align: right;
+}
+
+.ctrl-rebreak {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px;
+  background: rgba(255, 112, 67, 0.18);
+  border: 1px solid rgba(255, 112, 67, 0.5);
+  border-radius: 6px;
+  color: #ffd54f;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ctrl-rebreak:hover {
+  background: rgba(255, 112, 67, 0.32);
+  color: #fff;
+}
+
+.ctrl-hint {
+  margin-top: 8px;
+  font-size: 9px;
+  color: #666;
+  text-align: center;
+  line-height: 1.4;
+}
+
 /* ---- ドロップゾーン ---- */
 #dropzone {
   position: absolute;

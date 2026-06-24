@@ -4,6 +4,7 @@ import { GLBLoader } from './GLBLoader.js';
 import { PhysicsWorld } from './PhysicsWorld.js';
 import { DestructionController } from './DestructionController.js';
 import { Overlay } from './ui/Overlay.js';
+import { ControlPanel } from './ui/ControlPanel.js';
 
 // ---------- 初期化 ----------
 const sceneSetup = new SceneSetup(document.getElementById('canvas'));
@@ -14,13 +15,19 @@ const loader = new GLBLoader();
 
 let destruction = null;
 let overlay = null;
+let controlPanel = null;
 let currentModel = null;
+let currentSource = null;
 
 // URLパラメータからGLBパスを取得（デフォルト: output/barrel.glb）
 const defaultGlb = new URLSearchParams(location.search).get('glb') ?? '/output/barrel.glb';
 
 // ---------- GLB 読み込み ----------
-async function loadGLB(source) {
+// keepParams: パネルで調整した物理値を引き継ぐ / autoBreak: 読み込み後に自動破壊
+async function loadGLB(source, { keepParams = false, autoBreak = false } = {}) {
+  // パネルの現在値を退避（再ロードで引き継ぐ場合）
+  const carriedParams = keepParams && controlPanel ? controlPanel.getValues() : null;
+
   // 既存モデルを削除
   if (currentModel) {
     sceneSetup.scene.remove(currentModel);
@@ -36,7 +43,12 @@ async function loadGLB(source) {
     return;
   }
 
+  currentSource = source;
   const { scene: model, metadata, intactMesh, shardsGroup } = loaded;
+
+  // 退避した物理値を上書き反映
+  if (carriedParams) Object.assign(metadata, carriedParams);
+
   currentModel = model;
   sceneSetup.scene.add(model);
 
@@ -69,6 +81,19 @@ async function loadGLB(source) {
     overlay = new Overlay(document.getElementById('overlay'), metadata);
   }
 
+  // パラメータ調整パネル
+  if (!controlPanel) {
+    controlPanel = new ControlPanel(document.getElementById('controls'), {
+      onUpdate: () => overlay && overlay.refresh(),
+      onRebreak: async () => {
+        if (currentSource) await loadGLB(currentSource, { keepParams: true, autoBreak: true });
+      },
+    });
+  }
+  controlPanel.bind(metadata);
+
+  if (autoBreak && destruction) destruction.forceBreakFromTop();
+
   console.log('[main] GLB 読み込み完了:', metadata);
 }
 
@@ -82,8 +107,8 @@ sceneSetup.startRenderLoop((deltaMs) => {
 // ---------- R キーでリセット ----------
 window.addEventListener('keydown', async (e) => {
   if (e.key === 'r' || e.key === 'R') {
-    if (currentModel) {
-      await loadGLB(defaultGlb);
+    if (currentSource) {
+      await loadGLB(currentSource);
     }
   }
 });
