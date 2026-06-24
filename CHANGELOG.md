@@ -4,6 +4,16 @@
 
 ---
 
+## [0.2.0] — 2026-06-24
+
+### 追加（Added）
+- **フェーズ2: 岩（Rock）エンドツーエンドパイプライン**
+  - `blender_scripts/generators/rock.py` — IcoSphere（3段サブディビジョン）+ mathutils.noise による凹凸変形
+  - `python pipeline.py --type rock --pieces 15 --seed 5 --out output/rock.glb` で動作確認済み
+  - Webビューアで岩のクリック破壊・Rapier 物理落下を確認
+
+---
+
 ## [0.1.0] — 2026-06-23
 
 ### 追加（Added）
