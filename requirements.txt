@@ -1,0 +1,5 @@
+# Crumble — Python 依存関係
+# bpy は Blender バイナリに内蔵されているため pip インストール不要
+# pipeline.py はサブプロセスで Blender を呼ぶため標準ライブラリのみで動作する
+# テスト実行用
+pytest>=7.0
