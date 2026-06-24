@@ -45,12 +45,26 @@ python pipeline.py --type barrel --pieces 30 --seed 3 \
 python pipeline.py --type rock --pieces 25 --seed 5 --out output/rock.glb
 ```
 
+### デスクトップ GUI
+
+```bash
+# フォーム UI でパラメータを設定して GLB を生成（tkinter、追加依存なし）
+python gui.py
+```
+
+- 種別・破片数・シード・サイズ・物理パラメータをスライダー／フォームで設定
+- glass 選択時のみ衝突点（impact-x / impact-y）が有効化される
+- Blender パスと最後の設定は `~/.crumble_gui.json` に自動保存
+- 生成は `pipeline.py` を subprocess 実行し、ログをリアルタイム表示
+
 ### Webビューア
 
 ```bash
 cd viewer && npm run dev
 # ブラウザで http://localhost:5173/?glb=../output/barrel.glb
 # R キーでリセット、ドラッグ＆ドロップで別の GLB を読み込める
+# 右上のパラメータ調整パネルで質量・壊れやすさ・摩擦・反発をリアルタイム調整
+#   →「この設定で壊し直す」で同じモデルを新パラメータで再破壊
 ```
 
 ### テスト実行
@@ -84,6 +98,7 @@ pytest tests/ -v
 ```
 crumble/
 ├── pipeline.py                    # メイン CLI
+├── gui.py                         # デスクトップ GUI（tkinter）
 ├── blender_scripts/
 │   ├── generate_and_fracture.py   # Blender 実行エントリポイント
 │   ├── generators/
@@ -101,7 +116,9 @@ crumble/
 │       ├── GLBLoader.js           # GLB 読み込み・シーングラフ解析
 │       ├── PhysicsWorld.js        # Rapier 物理ワールド管理
 │       ├── DestructionController.js  # クリック → 破壊ロジック
-│       └── ui/                    # HUD オーバーレイ
+│       └── ui/                    # HUD オーバーレイ + パラメータ調整パネル
+│           ├── Overlay.js         # 種別・破片数などの情報表示
+│           └── ControlPanel.js    # 物理パラメータのリアルタイム調整
 ├── output/                        # 生成 GLB（.gitignore 対象）
 └── tests/                         # テストスクリプト
 ```

@@ -58,4 +58,9 @@ export class Overlay {
     this._broken = false;
     this._render();
   }
+
+  /** metadata の値だけ更新して再描画（破壊状態は維持）。パネル連動用。 */
+  refresh() {
+    this._render();
+  }
 }

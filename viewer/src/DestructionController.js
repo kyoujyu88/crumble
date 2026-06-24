@@ -47,6 +47,15 @@ export class DestructionController {
     }
   }
 
+  /** オブジェクト上端中央を衝突点として強制的に破壊する（パネルからの再破壊用）。 */
+  forceBreakFromTop() {
+    if (this.isBroken || !this.intactMesh) return;
+    const box = new THREE.Box3().setFromObject(this.intactMesh);
+    const center = box.getCenter(new THREE.Vector3());
+    const impact = new THREE.Vector3(center.x, box.max.y, center.z);
+    this._triggerDestruction(impact);
+  }
+
   _triggerDestruction(impactPoint) {
     if (this.isBroken) return;
     this.isBroken = true;
