@@ -37,11 +37,60 @@ DEFAULTS = {
 }
 
 # ---- 種別キーワード ----
+# 注意: キーワードが部分一致で衝突する場合（例: "石柱" と "石"）、
+# _match_type は「より長いキーワード」を優先するので、衝突しても正しく判定される。
 TYPE_KEYWORDS = {
-    "barrel": ["樽", "たる", "タル", "バレル", "barrel", "ドラム缶", "木箱", "酒樽"],
-    "rock":   ["岩", "石", "ロック", "rock", "岩石", "ボルダー", "岩塊", "石塊", "塊", "かたまり"],
-    "glass":  ["ガラス", "硝子", "ガラス板", "窓ガラス", "窓", "glass", "板ガラス"],
+    "barrel":    ["樽", "たる", "タル", "バレル", "barrel", "ドラム缶", "酒樽"],
+    "rock":      ["岩", "石", "ロック", "rock", "岩石", "ボルダー", "岩塊", "石塊", "塊", "かたまり"],
+    "glass":     ["ガラス", "硝子", "ガラス板", "窓ガラス", "窓", "glass", "板ガラス"],
+    "crate":     ["木箱", "箱", "クレート", "crate", "コンテナ"],
+    "vase":      ["花瓶", "壺", "つぼ", "vase", "甕", "かめ"],
+    "pillar":    ["石柱", "支柱", "円柱", "柱", "pillar", "column", "コラム"],
+    "pumpkin":   ["カボチャ", "かぼちゃ", "南瓜", "pumpkin"],
+    "ice":       ["氷塊", "氷柱", "氷", "アイス", "ice"],
+    "pot":       ["植木鉢", "植木ばち", "鉢", "flowerpot", "pot"],
+    "tombstone": ["墓石", "墓標", "石碑", "tombstone", "gravestone"],
+    "concrete":  ["コンクリート", "コンクリ", "セメントブロック", "ブロック", "concrete"],
+    "egg":       ["卵", "たまご", "タマゴ", "玉子", "egg"],
 }
+
+# 種別の正準リスト（pipeline / gui / LLM スキーマで共有）
+TYPES = list(TYPE_KEYWORDS.keys())
+
+# ---- 種別ごとの「ふさわしい」既定パラメータ ----
+# 優先順位は デフォルト < 種別プロファイル < プロンプト解析 < 明示引数。
+# pieces/weight(kg)/fragility/friction/restitution を素材・形状に合わせて調整。
+TYPE_PROFILES = {
+    # 木材・そこそこ頑丈・転がりにくい
+    "barrel":    {"weight": 18.0, "fragility": 0.55, "friction": 0.60, "restitution": 0.15, "pieces": 20},
+    # 石・重く頑丈・よく滑らない・跳ねない
+    "rock":      {"weight": 60.0, "fragility": 0.30, "friction": 0.85, "restitution": 0.05, "pieces": 22},
+    # 薄板ガラス・軽く粉々・つるつる
+    "glass":     {"weight": 5.0,  "fragility": 1.00, "friction": 0.30, "restitution": 0.10, "pieces": 24},
+    # 木箱・中量・摩擦高め
+    "crate":     {"weight": 12.0, "fragility": 0.60, "friction": 0.70, "restitution": 0.20, "pieces": 18},
+    # 陶器の花瓶・軽く非常に脆い
+    "vase":      {"weight": 4.0,  "fragility": 0.95, "friction": 0.40, "restitution": 0.10, "pieces": 28},
+    # 石柱・激重・極めて頑丈
+    "pillar":    {"weight": 95.0, "fragility": 0.22, "friction": 0.85, "restitution": 0.04, "pieces": 16},
+    # カボチャ・軽く潰れる・あまり跳ねない
+    "pumpkin":   {"weight": 6.0,  "fragility": 0.70, "friction": 0.55, "restitution": 0.20, "pieces": 14},
+    # 氷・つるつる・脆い・少し跳ねる
+    "ice":       {"weight": 18.0, "fragility": 0.85, "friction": 0.04, "restitution": 0.30, "pieces": 24},
+    # 素焼きの植木鉢・軽く脆い
+    "pot":       {"weight": 7.0,  "fragility": 0.80, "friction": 0.55, "restitution": 0.12, "pieces": 20},
+    # 墓石・重い石板・頑丈
+    "tombstone": {"weight": 70.0, "fragility": 0.30, "friction": 0.80, "restitution": 0.05, "pieces": 14},
+    # コンクリ塊・重く頑丈
+    "concrete":  {"weight": 80.0, "fragility": 0.35, "friction": 0.85, "restitution": 0.05, "pieces": 22},
+    # 卵・極軽・即割れ
+    "egg":       {"weight": 1.0,  "fragility": 1.00, "friction": 0.45, "restitution": 0.08, "pieces": 12},
+}
+
+
+def profile_for(obj_type) -> dict:
+    """種別の既定プロファイル（コピー）を返す。未知の種別は空辞書。"""
+    return dict(TYPE_PROFILES.get(obj_type, {}))
 
 # ---- 形容詞 → 連続パラメータ（キーワード: 目標値） ----
 WEIGHT_WORDS = {
@@ -150,16 +199,19 @@ def parse_rules(text: str) -> dict:
 
 
 def _match_type(t: str, low: str):
-    """最初に出現した種別キーワードを採用（複数該当時は出現位置が早いもの）"""
-    best_pos = None
-    best_type = None
+    """
+    種別キーワードを採用する。出現位置が早いものを優先し、
+    同位置なら「より長いキーワード」を優先する（例: "石柱"→pillar が "石"→rock に勝つ）。
+    """
+    best = None  # (pos, -len, type)
     for typ, words in TYPE_KEYWORDS.items():
         for w in words:
             idx = low.find(w.lower())
-            if idx != -1 and (best_pos is None or idx < best_pos):
-                best_pos = idx
-                best_type = typ
-    return best_type
+            if idx != -1:
+                key = (idx, -len(w))
+                if best is None or key < best[0]:
+                    best = (key, typ)
+    return best[1] if best else None
 
 
 def _pick_value(t: str, table: dict, default: float):
@@ -223,8 +275,10 @@ _LLM_TOOL = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "type": {"type": "string", "enum": ["barrel", "rock", "glass"],
-                     "description": "オブジェクト種別。樽=barrel, 岩=rock, ガラス=glass"},
+            "type": {"type": "string", "enum": TYPES,
+                     "description": ("オブジェクト種別。樽=barrel, 岩=rock, ガラス=glass, "
+                                     "木箱=crate, 花瓶/壺=vase, 石柱=pillar, カボチャ=pumpkin, "
+                                     "氷=ice, 植木鉢=pot, 墓石=tombstone, コンクリ=concrete, 卵=egg")},
             "pieces": {"type": "integer", "minimum": 2, "maximum": 999,
                        "description": "破片数。多いほど細かく割れる"},
             "size": {"type": "number", "minimum": 0.1, "maximum": 10.0,
@@ -298,7 +352,7 @@ def parse_llm(text: str, model: str = None) -> dict:
 def _sanitize_llm(d: dict) -> dict:
     """LLM 出力を範囲内に丸める。"""
     out = {}
-    if d.get("type") in ("barrel", "rock", "glass"):
+    if d.get("type") in TYPES:
         out["type"] = d["type"]
     if "pieces" in d:
         out["pieces"] = _clamp_int(int(d["pieces"]), 2, 999)

@@ -39,8 +39,9 @@ def main():
                         help="プロンプト解析で LLM フォールバックを使わない（ルールベースのみ）")
     parser.add_argument("--dry-run", action="store_true",
                         help="解決したパラメータを表示して終了（Blender を起動しない）")
-    parser.add_argument("--type", choices=["barrel", "rock", "glass"], default=None,
-                        help="オブジェクト種別 (barrel/rock/glass)")
+    from prompt_parser import TYPES as VALID_TYPES
+    parser.add_argument("--type", choices=VALID_TYPES, default=None,
+                        help="オブジェクト種別 (" + "/".join(VALID_TYPES) + ")")
     parser.add_argument("--pieces", type=int, default=None,
                         help="破片数 (デフォルト: 20)")
     parser.add_argument("--seed", type=int, default=None,
@@ -66,19 +67,30 @@ def main():
 
     args = parser.parse_args()
 
-    # ---- パラメータ解決: デフォルト < プロンプト解析 < 明示引数 ----
-    from prompt_parser import parse as parse_prompt, DEFAULTS
+    # ---- パラメータ解決: デフォルト < 種別プロファイル < プロンプト解析 < 明示引数 ----
+    from prompt_parser import parse as parse_prompt, DEFAULTS, profile_for
 
     resolved = dict(DEFAULTS)   # pieces/seed/size/weight/... の既定値
-    resolved["type"] = None
 
     parsed = {}
     if args.prompt:
         use_llm = False if args.no_llm else "auto"
         parsed = parse_prompt(args.prompt, use_llm=use_llm)
-        resolved.update(parsed)
         print(f"[pipeline] プロンプト解析: \"{args.prompt}\"")
         print(f"[pipeline]   → {parsed}")
+
+    # 最終種別を先に決定（明示 > プロンプト）
+    final_type = args.type or parsed.get("type")
+
+    # 種別プロファイル（その物体にふさわしい既定値）を適用（プロンプト・明示より下位）
+    if final_type:
+        prof = profile_for(final_type)
+        if prof:
+            print(f"[pipeline] 種別プロファイル({final_type}): {prof}")
+        resolved.update(prof)
+
+    # プロンプト解析結果で上書き（プロファイルより優先）
+    resolved.update(parsed)
 
     # 明示引数（None でないもの）で上書き
     explicit = {
@@ -90,6 +102,9 @@ def main():
     for k, v in explicit.items():
         if v is not None:
             resolved[k] = v
+
+    # 種別を最終確定（明示 > プロンプト）
+    resolved["type"] = final_type
 
     # 種別は必須（明示 or プロンプトから）
     if not resolved["type"]:

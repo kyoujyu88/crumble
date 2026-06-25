@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from prompt_parser import parse, parse_rules  # noqa: E402
+from prompt_parser import parse, parse_rules, profile_for, TYPES, TYPE_PROFILES  # noqa: E402
 
 
 def _rules(text):
@@ -20,20 +20,59 @@ def _rules(text):
 
 def test_type_barrel():
     assert _rules("樽を作って")["type"] == "barrel"
-    assert _rules("木箱を壊す")["type"] == "barrel"
+    assert _rules("酒樽を壊す")["type"] == "barrel"
     assert _rules("a wooden barrel")["type"] == "barrel"
 
 
 def test_type_rock():
     assert _rules("大きな岩")["type"] == "rock"
     assert _rules("石を粉々に")["type"] == "rock"
-    assert _rules("氷の巨大な塊")["type"] == "rock"
+    assert _rules("巨大な岩塊")["type"] == "rock"
     assert _rules("かたまりを壊す")["type"] == "rock"
 
 
 def test_type_glass():
     assert _rules("窓ガラスを割る")["type"] == "glass"
     assert _rules("ガラス板")["type"] == "glass"
+
+
+def test_type_new_objects():
+    assert _rules("木箱を壊す")["type"] == "crate"
+    assert _rules("花瓶を割る")["type"] == "vase"
+    assert _rules("壺")["type"] == "vase"
+    assert _rules("カボチャを粉々に")["type"] == "pumpkin"
+    assert _rules("氷の塊を砕く")["type"] == "ice"
+    assert _rules("植木鉢")["type"] == "pot"
+    assert _rules("墓石")["type"] == "tombstone"
+    assert _rules("コンクリのブロック")["type"] == "concrete"
+    assert _rules("卵を割る")["type"] == "egg"
+
+
+def test_type_longest_match_wins():
+    # "石柱" は "石"(rock) を含むが、より長い "石柱" が pillar として勝つ
+    assert _rules("古い石柱")["type"] == "pillar"
+    # "石碑" も同様に tombstone（"石" rock に勝つ）
+    assert _rules("石碑")["type"] == "tombstone"
+
+
+def test_profiles_cover_all_types():
+    # すべての種別にプロファイルがあり、各値が妥当な範囲
+    for t in TYPES:
+        p = profile_for(t)
+        assert p, f"{t} にプロファイルが無い"
+        assert 0.0 <= p["fragility"] <= 1.0
+        assert 0.0 <= p["friction"] <= 1.0
+        assert 0.0 <= p["restitution"] <= 1.0
+        assert p["weight"] > 0
+        assert p["pieces"] >= 2
+
+
+def test_profile_character():
+    # 石柱は卵より遥かに重く頑丈、卵は軽くて即割れ
+    assert TYPE_PROFILES["pillar"]["weight"] > TYPE_PROFILES["egg"]["weight"]
+    assert TYPE_PROFILES["pillar"]["fragility"] < TYPE_PROFILES["egg"]["fragility"]
+    # 氷はよく滑る（摩擦が低い）
+    assert TYPE_PROFILES["ice"]["friction"] < 0.2
 
 
 def test_pieces_extraction():

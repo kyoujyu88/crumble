@@ -108,16 +108,40 @@ pytest tests/ -v
 | パラメータ | デフォルト | 説明 |
 |---|---|---|
 | `--prompt` | なし | 自然言語の指示からパラメータを推定（明示引数が優先） |
-| `--type` | 必須※ | `barrel` / `rock` / `glass`（※`--prompt` で種別が判別できれば省略可） |
-| `--pieces` | 20 | 破片数（2〜999） |
+| `--type` | 必須※ | 12 種別（下記）から選択（※`--prompt` で種別が判別できれば省略可） |
+| `--pieces` | 種別依存 | 破片数（2〜999） |
 | `--seed` | 1 | 乱数シード（同じ値で同じ割れ方） |
 | `--size` | 1.0 | スケール倍率 |
-| `--weight` | 10.0 | 総質量 kg（Rapier の mass に影響） |
-| `--fragility` | 0.5 | 壊れやすさ 0.0〜1.0（散乱インパルス強度） |
-| `--friction` | 0.5 | 摩擦係数 0.0〜1.0 |
-| `--restitution` | 0.3 | 反発係数 0.0〜1.0（跳ね返り） |
+| `--weight` | 種別依存 | 総質量 kg（Rapier の mass に影響） |
+| `--fragility` | 種別依存 | 壊れやすさ 0.0〜1.0（散乱インパルス強度） |
+| `--friction` | 種別依存 | 摩擦係数 0.0〜1.0 |
+| `--restitution` | 種別依存 | 反発係数 0.0〜1.0（跳ね返り） |
 | `--no-llm` | off | プロンプト解析で LLM を使わずルールベースのみ |
 | `--dry-run` | off | 解決したパラメータを表示して終了（Blender 起動なし） |
+
+### 種別一覧（12種）と既定プロファイル
+
+物理パラメータ（weight/fragility/friction/restitution/pieces）は **種別ごとに「ふさわしい既定値」**（`prompt_parser.TYPE_PROFILES`）を持つ。
+明示引数やプロンプトで指定しなければ、その物体らしい値が自動適用される。
+
+| 種別 | 内容 | weight | fragility | friction | restitution | pieces |
+|---|---|---|---|---|---|---|
+| `barrel` | 樽（木） | 18 | 0.55 | 0.60 | 0.15 | 20 |
+| `rock` | 岩（石） | 60 | 0.30 | 0.85 | 0.05 | 22 |
+| `glass` | ガラス板 | 5 | 1.00 | 0.30 | 0.10 | 24 |
+| `crate` | 木箱 | 12 | 0.60 | 0.70 | 0.20 | 18 |
+| `vase` | 花瓶・壺（陶器） | 4 | 0.95 | 0.40 | 0.10 | 28 |
+| `pillar` | 石柱 | 95 | 0.22 | 0.85 | 0.04 | 16 |
+| `pumpkin` | カボチャ | 6 | 0.70 | 0.55 | 0.20 | 14 |
+| `ice` | 氷塊 | 18 | 0.85 | 0.04 | 0.30 | 24 |
+| `pot` | 植木鉢（素焼き） | 7 | 0.80 | 0.55 | 0.12 | 20 |
+| `tombstone` | 墓石 | 70 | 0.30 | 0.80 | 0.05 | 14 |
+| `concrete` | コンクリブロック | 80 | 0.35 | 0.85 | 0.05 | 22 |
+| `egg` | 卵 | 1 | 1.00 | 0.45 | 0.08 | 12 |
+
+優先順位は **デフォルト < 種別プロファイル < プロンプト解析 < 明示引数**。
+新しい種別の追加は ①`generators/<type>.py` を作成 ②`generate_and_fracture.GENERATORS` に1行追加
+③`prompt_parser` の `TYPE_KEYWORDS` / `TYPE_PROFILES` に追加、の3点だけで済む。
 
 ## ディレクトリ構成
 
@@ -128,10 +152,12 @@ crumble/
 ├── gui.py                         # デスクトップ GUI（tkinter、プロンプト欄付き）
 ├── blender_scripts/
 │   ├── generate_and_fracture.py   # Blender 実行エントリポイント
-│   ├── generators/
-│   │   ├── barrel.py              # 樽メッシュ生成（実装済み）
-│   │   ├── rock.py                # 岩メッシュ生成（フェーズ2）
-│   │   └── glass.py               # ガラス板生成（フェーズ3）
+│   ├── generators/               # 種別ごとのメッシュ生成（GENERATORS レジストリで動的ディスパッチ）
+│   │   ├── _common.py            # 共通ヘルパー（マテリアル / モディファイア / 回転体 lathe）
+│   │   ├── barrel.py             # 樽    rock.py 岩    glass.py ガラス板
+│   │   ├── crate.py              # 木箱  concrete.py コンクリ  tombstone.py 墓石  ice.py 氷塊
+│   │   ├── vase.py               # 花瓶・壺  pot.py 植木鉢  pillar.py 石柱（lathe 回転体）
+│   │   └── pumpkin.py            # カボチャ  egg.py 卵（球ベース変形）
 │   ├── fracture/
 │   │   ├── voronoi_cell.py        # Voronoi フラクチャ（Cell Fracture アドオン）
 │   │   └── glass_crack.py         # 放射状クラック（フェーズ3）
@@ -170,10 +196,10 @@ Scene
 {
   "crumble_type": "barrel",
   "crumble_pieces": 20,
-  "crumble_weight": 10.0,
-  "crumble_fragility": 0.5,
-  "crumble_friction": 0.5,
-  "crumble_restitution": 0.3,
+  "crumble_weight": 18.0,
+  "crumble_fragility": 0.55,
+  "crumble_friction": 0.6,
+  "crumble_restitution": 0.15,
   "crumble_seed": 1,
   "crumble_version": "1.0"
 }
@@ -214,7 +240,8 @@ Scene
 - ルールベース層: `TYPE_KEYWORDS` / `*_WORDS` 辞書 + 正規表現。形容詞は「既定値から最も離れた値」を採用
 - 素材ヒント（木/鉄/氷…）→ 形容詞 → 明示数値 の順に上書き（後勝ち）
 - LLM 層は Claude の tool use（`set_crumble_params`）で構造化出力。スキーマで範囲を強制
-- `pipeline.py` は デフォルト < プロンプト解析 < 明示引数 の3段でマージ
+- 種別キーワードは **最長一致優先**（例: 「石柱」は「石」(rock) より長い `pillar` が勝つ）
+- `pipeline.py` は **デフォルト < 種別プロファイル < プロンプト解析 < 明示引数** の4段でマージ
 
 ## 既知の制限・TODO
 
