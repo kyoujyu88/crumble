@@ -17,6 +17,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, ttk
 
+import prompt_parser
+
 ROOT_DIR = Path(__file__).parent.resolve()
 PIPELINE = ROOT_DIR / "pipeline.py"
 CONFIG_PATH = Path.home() / ".crumble_gui.json"
@@ -45,7 +47,9 @@ class CrumbleGUI:
         self.cfg = load_config()
         self.proc = None
         self.log_queue = queue.Queue()
+        self.parse_queue = queue.Queue()
         self._customized_out = False
+        self._val_labels = {}   # key -> (val_label, fmt) スライダー値表示
 
         root.title("Crumble — 破壊可能3Dオブジェクト生成")
         root.minsize(620, 640)
@@ -53,6 +57,7 @@ class CrumbleGUI:
         self._build_ui()
         self._on_type_change()
         self.root.after(100, self._drain_log)
+        self.root.after(100, self._drain_parse)
 
     # ---------------- UI 構築 ----------------
     def _build_ui(self):
@@ -62,6 +67,22 @@ class CrumbleGUI:
         frm.columnconfigure(1, weight=1)
 
         row = 0
+
+        # --- プロンプト（自然言語） ---
+        ttk.Label(frm, text="プロンプト").grid(row=row, column=0, sticky="w", **pad)
+        self.var_prompt = tk.StringVar(value=self.cfg.get("prompt", ""))
+        prompt_entry = ttk.Entry(frm, textvariable=self.var_prompt)
+        prompt_entry.grid(row=row, column=1, sticky="ew", **pad)
+        prompt_entry.bind("<Return>", lambda e: self._analyze_prompt())
+        self.btn_analyze = ttk.Button(frm, text="解析→反映", command=self._analyze_prompt)
+        self.btn_analyze.grid(row=row, column=2, **pad)
+        row += 1
+        ttk.Label(frm, text='例: 「重い木製の樽を30破片で派手に割れるように」',
+                  foreground="#888").grid(row=row, column=1, columnspan=2, sticky="w", padx=8)
+        row += 1
+        ttk.Separator(frm, orient="horizontal").grid(
+            row=row, column=0, columnspan=3, sticky="ew", padx=8, pady=6)
+        row += 1
 
         # --- type ---
         ttk.Label(frm, text="種別").grid(row=row, column=0, sticky="w", **pad)
@@ -85,31 +106,31 @@ class CrumbleGUI:
 
         # --- size ---
         self.var_size = tk.DoubleVar(value=self.cfg.get("size", 1.0))
-        row = self._add_scale(frm, row, "サイズ (size)", self.var_size, 0.1, 5.0, 0.1)
+        row = self._add_scale(frm, row, "サイズ (size)", self.var_size, 0.1, 5.0, 0.1, "size")
 
         # --- weight ---
         self.var_weight = tk.DoubleVar(value=self.cfg.get("weight", 10.0))
-        row = self._add_scale(frm, row, "質量 kg (weight)", self.var_weight, 0.1, 100.0, 0.1)
+        row = self._add_scale(frm, row, "質量 kg (weight)", self.var_weight, 0.1, 100.0, 0.1, "weight")
 
         # --- fragility ---
         self.var_fragility = tk.DoubleVar(value=self.cfg.get("fragility", 0.5))
-        row = self._add_scale(frm, row, "壊れやすさ (fragility)", self.var_fragility, 0.0, 1.0, 0.01)
+        row = self._add_scale(frm, row, "壊れやすさ (fragility)", self.var_fragility, 0.0, 1.0, 0.01, "fragility")
 
         # --- friction ---
         self.var_friction = tk.DoubleVar(value=self.cfg.get("friction", 0.5))
-        row = self._add_scale(frm, row, "摩擦 (friction)", self.var_friction, 0.0, 1.0, 0.01)
+        row = self._add_scale(frm, row, "摩擦 (friction)", self.var_friction, 0.0, 1.0, 0.01, "friction")
 
         # --- restitution ---
         self.var_restitution = tk.DoubleVar(value=self.cfg.get("restitution", 0.3))
-        row = self._add_scale(frm, row, "反発 (restitution)", self.var_restitution, 0.0, 1.0, 0.01)
+        row = self._add_scale(frm, row, "反発 (restitution)", self.var_restitution, 0.0, 1.0, 0.01, "restitution")
 
         # --- impact (glass のみ) ---
         self.var_impact_x = tk.DoubleVar(value=self.cfg.get("impact_x", 0.0))
         self.lbl_ix, self.scale_ix, row = self._add_scale_ref(
-            frm, row, "衝突点X (impact-x)", self.var_impact_x, -1.0, 1.0, 0.05)
+            frm, row, "衝突点X (impact-x)", self.var_impact_x, -1.0, 1.0, 0.05, "impact_x")
         self.var_impact_y = tk.DoubleVar(value=self.cfg.get("impact_y", 0.0))
         self.lbl_iy, self.scale_iy, row = self._add_scale_ref(
-            frm, row, "衝突点Y (impact-y)", self.var_impact_y, -1.0, 1.0, 0.05)
+            frm, row, "衝突点Y (impact-y)", self.var_impact_y, -1.0, 1.0, 0.05, "impact_y")
 
         # --- 出力先 ---
         ttk.Label(frm, text="出力先 (out)").grid(row=row, column=0, sticky="w", **pad)
@@ -154,16 +175,18 @@ class CrumbleGUI:
             row=row, column=1, sticky="w", **pad)
         return row + 1
 
-    def _add_scale(self, frm, row, label, var, lo, hi, step):
-        _, _, nrow = self._add_scale_ref(frm, row, label, var, lo, hi, step)
+    def _add_scale(self, frm, row, label, var, lo, hi, step, key=None):
+        _, _, nrow = self._add_scale_ref(frm, row, label, var, lo, hi, step, key)
         return nrow
 
-    def _add_scale_ref(self, frm, row, label, var, lo, hi, step):
+    def _add_scale_ref(self, frm, row, label, var, lo, hi, step, key=None):
         pad = {"padx": 8, "pady": 4}
         lbl = ttk.Label(frm, text=label)
         lbl.grid(row=row, column=0, sticky="w", **pad)
         val_lbl = ttk.Label(frm, text=self._fmt(var.get()), width=6)
         val_lbl.grid(row=row, column=2, sticky="e", **pad)
+        if key:
+            self._val_labels[key] = val_lbl
 
         def on_move(v):
             # ステップに丸める
@@ -200,6 +223,61 @@ class CrumbleGUI:
         # 出力先をユーザーが手動編集していなければ type に追従
         if not self._customized_out:
             self.var_out.set(str(ROOT_DIR / "output" / f"{t}.glb"))
+
+    # ---------------- プロンプト解析 ----------------
+    def _analyze_prompt(self):
+        text = self.var_prompt.get().strip()
+        if not text:
+            return
+        self.btn_analyze.configure(state="disabled", text="解析中…")
+        self._log_write(f"🔎 プロンプト解析: {text}\n")
+        threading.Thread(target=self._run_analyze, args=(text,), daemon=True).start()
+
+    def _run_analyze(self, text):
+        try:
+            # LLM はキー/パッケージがあれば自動利用、無ければルールベース
+            parsed = prompt_parser.parse(text, use_llm="auto")
+            self.parse_queue.put(("ok", parsed))
+        except Exception as e:
+            self.parse_queue.put(("err", str(e)))
+
+    def _drain_parse(self):
+        try:
+            while True:
+                status, payload = self.parse_queue.get_nowait()
+                self.btn_analyze.configure(state="normal", text="解析→反映")
+                if status == "ok":
+                    self._apply_parsed(payload)
+                else:
+                    self._log_write(f"❌ 解析エラー: {payload}\n")
+        except queue.Empty:
+            pass
+        self.root.after(100, self._drain_parse)
+
+    def _apply_parsed(self, d: dict):
+        """解析結果（部分辞書）をフォームに反映する。"""
+        if not d:
+            self._log_write("  （該当パラメータを抽出できませんでした）\n")
+            return
+        if "type" in d:
+            self.type_menu.set(TYPE_LABELS[d["type"]])
+            self._on_type_change()
+        if "pieces" in d:
+            self.var_pieces.set(int(d["pieces"]))
+        if "seed" in d:
+            self.var_seed.set(int(d["seed"]))
+        for key, var in [
+            ("size", self.var_size), ("weight", self.var_weight),
+            ("fragility", self.var_fragility), ("friction", self.var_friction),
+            ("restitution", self.var_restitution),
+            ("impact_x", self.var_impact_x), ("impact_y", self.var_impact_y),
+        ]:
+            if key in d:
+                var.set(round(float(d[key]), 4))
+                lbl = self._val_labels.get(key)
+                if lbl:
+                    lbl.configure(text=self._fmt(var.get()))
+        self._log_write(f"  → 反映: {d}\n")
 
     def _browse_out(self):
         path = filedialog.asksaveasfilename(
@@ -301,6 +379,7 @@ class CrumbleGUI:
 
     def _save_current_config(self):
         save_config({
+            "prompt": self.var_prompt.get(),
             "type": self._selected_type(),
             "pieces": int(self.var_pieces.get()),
             "seed": int(self.var_seed.get()),
