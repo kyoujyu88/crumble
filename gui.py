@@ -23,8 +23,25 @@ ROOT_DIR = Path(__file__).parent.resolve()
 PIPELINE = ROOT_DIR / "pipeline.py"
 CONFIG_PATH = Path.home() / ".crumble_gui.json"
 
-TYPES = ["barrel", "rock", "glass"]
-TYPE_LABELS = {"barrel": "樽 (barrel)", "rock": "岩 (rock)", "glass": "ガラス板 (glass)"}
+# 種別は prompt_parser を単一の真実の源として共有する
+TYPES = list(prompt_parser.TYPES)
+TYPE_LABELS = {
+    "barrel": "樽 (barrel)",
+    "rock": "岩 (rock)",
+    "glass": "ガラス板 (glass)",
+    "crate": "木箱 (crate)",
+    "vase": "花瓶・壺 (vase)",
+    "pillar": "石柱 (pillar)",
+    "pumpkin": "カボチャ (pumpkin)",
+    "ice": "氷塊 (ice)",
+    "pot": "植木鉢 (pot)",
+    "tombstone": "墓石 (tombstone)",
+    "concrete": "コンクリブロック (concrete)",
+    "egg": "卵 (egg)",
+}
+# 念のため未知の種別が増えてもラベルが落ちないようフォールバック
+for _t in TYPES:
+    TYPE_LABELS.setdefault(_t, _t)
 
 
 def load_config() -> dict:
@@ -210,11 +227,16 @@ class CrumbleGUI:
                 return t
         return "barrel"
 
-    def _on_type_change(self):
+    def _on_type_change(self, apply_profile=True):
         # 注意: Combobox の textvariable(var_type) にはラベルが入る。
         # ここでキー(t)を set すると表示が壊れ、_selected_type が
         # ラベル照合に失敗して barrel にフォールバックしてしまうため設定しない。
         t = self._selected_type()
+
+        # 種別を切り替えたら、その物体にふさわしい既定パラメータを反映する
+        if apply_profile:
+            self._set_param_fields(prompt_parser.profile_for(t))
+
         is_glass = (t == "glass")
         state = "normal" if is_glass else "disabled"
         self.scale_ix.configure(state=state)
@@ -256,14 +278,8 @@ class CrumbleGUI:
             pass
         self.root.after(100, self._drain_parse)
 
-    def _apply_parsed(self, d: dict):
-        """解析結果（部分辞書）をフォームに反映する。"""
-        if not d:
-            self._log_write("  （該当パラメータを抽出できませんでした）\n")
-            return
-        if "type" in d:
-            self.type_menu.set(TYPE_LABELS[d["type"]])
-            self._on_type_change()
+    def _set_param_fields(self, d: dict):
+        """部分辞書のパラメータをフォーム（スライダー・スピン）に反映する。"""
         if "pieces" in d:
             self.var_pieces.set(int(d["pieces"]))
         if "seed" in d:
@@ -279,6 +295,16 @@ class CrumbleGUI:
                 lbl = self._val_labels.get(key)
                 if lbl:
                     lbl.configure(text=self._fmt(var.get()))
+
+    def _apply_parsed(self, d: dict):
+        """解析結果（部分辞書）をフォームに反映する。"""
+        if not d:
+            self._log_write("  （該当パラメータを抽出できませんでした）\n")
+            return
+        if "type" in d:
+            self.type_menu.set(TYPE_LABELS[d["type"]])
+            self._on_type_change()  # まず種別プロファイルで土台を埋め
+        self._set_param_fields(d)   # 解析で得た値で上書き（プロファイルより優先）
         self._log_write(f"  → 反映: {d}\n")
 
     def _browse_out(self):

@@ -1,4 +1,8 @@
-const TYPE_LABEL = { barrel: '樽', rock: '岩', glass: 'ガラス板' };
+const TYPE_LABEL = {
+  barrel: '樽', rock: '岩', glass: 'ガラス板',
+  crate: '木箱', vase: '花瓶・壺', pillar: '石柱', pumpkin: 'カボチャ',
+  ice: '氷塊', pot: '植木鉢', tombstone: '墓石', concrete: 'コンクリブロック', egg: '卵',
+};
 
 export class Overlay {
   constructor(container, metadata) {
