@@ -211,8 +211,10 @@ class CrumbleGUI:
         return "barrel"
 
     def _on_type_change(self):
+        # 注意: Combobox の textvariable(var_type) にはラベルが入る。
+        # ここでキー(t)を set すると表示が壊れ、_selected_type が
+        # ラベル照合に失敗して barrel にフォールバックしてしまうため設定しない。
         t = self._selected_type()
-        self.var_type.set(t)
         is_glass = (t == "glass")
         state = "normal" if is_glass else "disabled"
         self.scale_ix.configure(state=state)
