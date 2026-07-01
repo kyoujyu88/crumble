@@ -46,6 +46,10 @@ export class GLBLoader {
       fragility: parseFloat(ud.crumble_fragility ?? 0.5),
       friction: parseFloat(ud.crumble_friction ?? 0.5),
       restitution: parseFloat(ud.crumble_restitution ?? 0.3),
+      // 旧バージョンのGLB（crumble_scatter_force 未対応）は fragility から再計算
+      scatterForce: ud.crumble_scatter_force != null
+        ? parseFloat(ud.crumble_scatter_force)
+        : parseFloat(ud.crumble_fragility ?? 0.5) * 15.0,
       version: ud.crumble_version ?? '1.0',
     };
 

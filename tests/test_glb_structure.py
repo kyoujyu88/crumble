@@ -59,18 +59,22 @@ def test_extras(glb_path: str):
     assert root_node is not None, "'destructible_root' ノードが見つからない"
 
     extras = root_node.get("extras", {})
-    required_keys = ["crumble_type", "crumble_pieces", "crumble_weight", "crumble_fragility"]
+    required_keys = [
+        "crumble_type", "crumble_pieces", "crumble_weight", "crumble_fragility",
+        "crumble_scatter_force",
+    ]
     for key in required_keys:
         assert key in extras, f"'{key}' が extras にない。extras: {extras}"
 
     print(f"  extras 確認 OK: type={extras.get('crumble_type')}, "
           f"pieces={extras.get('crumble_pieces')}, "
           f"weight={extras.get('crumble_weight')}, "
-          f"fragility={extras.get('crumble_fragility')}")
+          f"fragility={extras.get('crumble_fragility')}, "
+          f"scatter_force={extras.get('crumble_scatter_force')}")
 
 
 def test_shard_extras(glb_path: str):
-    """各シャードノードに crumble_shard_index が含まれるか確認"""
+    """各シャードノードに crumble_shard_index / crumble_shard_mass が含まれるか確認"""
     glb = parse_glb_json(glb_path)
 
     shard_nodes = [n for n in glb.get("nodes", []) if n.get("name", "").startswith("shard_")]
@@ -78,13 +82,33 @@ def test_shard_extras(glb_path: str):
         print("  シャードノードなし（スキップ）")
         return
 
-    ok = 0
+    ok_index = 0
+    ok_mass = 0
+    mass_sum = 0.0
     for node in shard_nodes:
         extras = node.get("extras", {})
         if "crumble_shard_index" in extras:
-            ok += 1
+            ok_index += 1
+        if "crumble_shard_mass" in extras:
+            ok_mass += 1
+            mass_sum += extras["crumble_shard_mass"]
 
-    print(f"  シャード extras 確認: {ok}/{len(shard_nodes)} ノードに crumble_shard_index あり")
+    print(f"  シャード extras 確認: {ok_index}/{len(shard_nodes)} ノードに crumble_shard_index あり")
+
+    root_node = next(
+        (n for n in glb.get("nodes", []) if n.get("name") == "destructible_root"),
+        None
+    )
+    total_weight = root_node.get("extras", {}).get("crumble_weight") if root_node else None
+
+    assert ok_mass == len(shard_nodes), \
+        f"'crumble_shard_mass' が全シャードに揃っていない ({ok_mass}/{len(shard_nodes)})"
+    if total_weight is not None:
+        assert abs(mass_sum - total_weight) < max(0.01, total_weight * 0.01), \
+            f"per-shard mass の合計 ({mass_sum}) が crumble_weight ({total_weight}) と一致しない"
+
+    print(f"  シャード質量確認 OK: {ok_mass}/{len(shard_nodes)} ノード, "
+          f"合計質量={mass_sum:.3f} (crumble_weight={total_weight})")
 
 
 def run_all(glb_path: str):

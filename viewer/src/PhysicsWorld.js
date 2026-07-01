@@ -38,23 +38,29 @@ export class PhysicsWorld {
    */
   createShardBodies(shardsGroup, impactPoint, metadata) {
     const massTotal = metadata.weight ?? 10.0;
-    const fragility = metadata.fragility ?? 0.5;
     const friction = metadata.friction ?? 0.5;
     const restitution = metadata.restitution ?? 0.3;
+    // fragility から都度計算する代わりに、GLB に焼き込まれた値を優先して使う
+    // （GLBLoader が旧バージョンのファイルは fragility*15.0 でフォールバック計算済み）
+    const scatterForce = metadata.scatterForce ?? (metadata.fragility ?? 0.5) * 15.0;
 
     // シャードメッシュを収集
     const shards = [];
     shardsGroup.traverse(obj => { if (obj.isMesh) shards.push(obj); });
 
-    const massPerShard = massTotal / Math.max(shards.length, 1);
-    // fragility が高いほど大きな散乱力（0.0→0N, 1.0→15N相当）
-    const scatterForce = fragility * 15.0;
+    // 均等割りは crumble_shard_mass 拡張プロパティを持たない旧GLBのフォールバックのみに使う
+    const evenMassPerShard = massTotal / Math.max(shards.length, 1);
 
     shards.forEach(shard => {
       const worldPos = new THREE.Vector3();
       const worldQuat = new THREE.Quaternion();
       shard.getWorldPosition(worldPos);
       shard.getWorldQuaternion(worldQuat);
+
+      // 体積比で配分された per-shard 質量（export_glb.py が計算済み）。無ければ均等割り。
+      const shardMass = shard.userData?.crumble_shard_mass != null
+        ? parseFloat(shard.userData.crumble_shard_mass)
+        : evenMassPerShard;
 
       // RigidBody 作成
       const rbDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -66,11 +72,11 @@ export class PhysicsWorld {
       const rigidBody = this.world.createRigidBody(rbDesc);
 
       // ローカル頂点から ConvexHull コライダーを生成
-      const colliderDesc = this._buildCollider(shard, massPerShard, friction, restitution);
+      const colliderDesc = this._buildCollider(shard, shardMass, friction, restitution);
       this.world.createCollider(colliderDesc, rigidBody);
 
       // 衝突点から外向きのインパルスを適用
-      this._applyScatterImpulse(rigidBody, worldPos, impactPoint, scatterForce, massPerShard);
+      this._applyScatterImpulse(rigidBody, worldPos, impactPoint, scatterForce, shardMass);
 
       this.bodies.push({ rigidBody, mesh: shard });
     });

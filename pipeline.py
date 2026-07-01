@@ -64,6 +64,9 @@ def main():
                         help="衝突点 Y 座標 -1.0〜1.0（glass のみ有効、デフォルト: 0.0 = 中心）")
     parser.add_argument("--blender", default="blender",
                         help="Blenderバイナリのパス (デフォルト: blender)")
+    parser.add_argument("--physics-extension", action="store_true",
+                        help="実験的: OMI_physics_shape/OMI_physics_body（glTF標準ドラフト物理拡張）"
+                             "も書き出す。要 `pip install pygltflib`（詳細は SCHEMA.md §7）")
 
     args = parser.parse_args()
 
@@ -178,6 +181,10 @@ def main():
     if not out_path.exists():
         print(f"\n[pipeline] エラー: GLBファイルが生成されませんでした: {args.out}", file=sys.stderr)
         sys.exit(1)
+
+    if args.physics_extension:
+        from physics_extension import add_physics_extension
+        add_physics_extension(str(out_path))
 
     size_kb = out_path.stat().st_size / 1024
     print(f"\n[pipeline] 完了: {args.out} ({size_kb:.1f} KB)")
