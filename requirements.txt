@@ -1,5 +1,13 @@
 # Crumble — Python 依存関係
 # bpy は Blender バイナリに内蔵されているため pip インストール不要
-# pipeline.py はサブプロセスで Blender を呼ぶため標準ライブラリのみで動作する
+# pipeline.py / gui.py / prompt_parser.py はサブプロセスで Blender を呼ぶため標準ライブラリのみで動作する
 # テスト実行用
 pytest>=7.0
+
+# フェーズ4 プロンプト解析の LLM フォールバックを使う場合のみ（任意）
+# ルールベース解析だけなら不要。ANTHROPIC_API_KEY と併せて利用。
+# anthropic>=0.40
+
+# pipeline.py --physics-extension を使う場合のみ（任意）
+# OMI_physics_shape/OMI_physics_body（glTF標準ドラフト物理拡張）の書き出しに使用。
+# pygltflib>=1.16

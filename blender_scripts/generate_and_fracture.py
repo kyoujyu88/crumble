@@ -13,7 +13,25 @@ _scripts_dir = Path(__file__).parent
 if str(_scripts_dir) not in sys.path:
     sys.path.insert(0, str(_scripts_dir))
 
+import importlib
+
 import bpy
+
+# 種別 → (モジュール, 関数名)。新しい種別はここに 1 行追加するだけで増やせる。
+GENERATORS = {
+    "barrel":    ("generators.barrel", "generate_barrel"),
+    "rock":      ("generators.rock", "generate_rock"),
+    "glass":     ("generators.glass", "generate_glass"),
+    "crate":     ("generators.crate", "generate_crate"),
+    "vase":      ("generators.vase", "generate_vase"),
+    "pillar":    ("generators.pillar", "generate_pillar"),
+    "pumpkin":   ("generators.pumpkin", "generate_pumpkin"),
+    "ice":       ("generators.ice", "generate_ice"),
+    "pot":       ("generators.pot", "generate_pot"),
+    "tombstone": ("generators.tombstone", "generate_tombstone"),
+    "concrete":  ("generators.concrete", "generate_concrete"),
+    "egg":       ("generators.egg", "generate_egg"),
+}
 
 
 def parse_params() -> dict:
@@ -66,19 +84,14 @@ def main():
 
     reset_scene()
 
-    # --------- メッシュ生成 ---------
-    if obj_type == "barrel":
-        from generators.barrel import generate_barrel
-        intact_obj = generate_barrel(params)
-    elif obj_type == "rock":
-        from generators.rock import generate_rock
-        intact_obj = generate_rock(params)
-    elif obj_type == "glass":
-        from generators.glass import generate_glass
-        intact_obj = generate_glass(params)
-    else:
+    # --------- メッシュ生成（レジストリから動的ディスパッチ） ---------
+    if obj_type not in GENERATORS:
         print(f"[generate] エラー: 未対応のタイプ: {obj_type}", file=sys.stderr)
+        print(f"[generate] 対応タイプ: {', '.join(GENERATORS)}", file=sys.stderr)
         sys.exit(1)
+    mod_name, fn_name = GENERATORS[obj_type]
+    gen_module = importlib.import_module(mod_name)
+    intact_obj = getattr(gen_module, fn_name)(params)
 
     intact_obj.name = "intact_mesh"
     print(f"[generate] メッシュ生成完了: 頂点数={len(intact_obj.data.vertices)}")
@@ -107,7 +120,12 @@ def main():
     shards_empty = bpy.context.active_object
     shards_empty.name = "shards"
 
-    for shard in shard_objects:
+    # シャード名を shard_000.. に正規化（フラクチャ経路によらず統一）。
+    # 既存名との衝突で .001 等が付かないよう、一旦ユニーク名にしてから付け直す。
+    for i, shard in enumerate(shard_objects):
+        shard.name = f"_crumble_tmp_{i}"
+    for i, shard in enumerate(shard_objects):
+        shard.name = f"shard_{i:03d}"
         shard.parent = shards_empty
 
     # --------- メタデータ付きGLBエクスポート ---------

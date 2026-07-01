@@ -26,9 +26,14 @@ def apply_voronoi_fracture(source_obj: bpy.types.Object, params: dict) -> list:
         shards = _fracture_fallback(source_obj, pieces, seed, params)
 
     if not shards:
-        print("[voronoi] 警告: シャードが生成されなかった。ソースをそのままシャードとして使用", file=sys.stderr)
-        source_obj.name = "shard_000"
-        return [source_obj]
+        print("[voronoi] 警告: シャードが生成されなかった。ソースの複製をシャードとして使用", file=sys.stderr)
+        bpy.ops.object.select_all(action='DESELECT')
+        source_obj.select_set(True)
+        bpy.context.view_layer.objects.active = source_obj
+        bpy.ops.object.duplicate(linked=False)
+        dup = bpy.context.active_object
+        dup.name = "shard_000"
+        return [dup]
 
     # ----- 命名と素材コピー -----
     src_mats = list(source_obj.data.materials) if source_obj.data else []
@@ -132,7 +137,15 @@ def _fracture_fallback(source_obj, pieces, seed, params) -> list:
     print("[voronoi] フォールバックフラクチャ: BSP 平面分割")
 
     rng = random.Random(seed)
-    objects = [source_obj]
+
+    # source_obj は呼び出し元（generate_and_fracture.py）が削除するため
+    # 複製を作成してそちらを分割する（source_obj をシャードに含めない）
+    bpy.ops.object.select_all(action='DESELECT')
+    source_obj.select_set(True)
+    bpy.context.view_layer.objects.active = source_obj
+    bpy.ops.object.duplicate(linked=False)
+    working = bpy.context.active_object
+    objects = [working]
 
     target_count = min(pieces, 64)  # フォールバックは最大64分割
     iterations = 0

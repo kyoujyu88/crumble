@@ -28,6 +28,13 @@ fi
 echo "[3/4] Python 依存関係をインストール中..."
 pip3 install -r requirements.txt -q
 
+# デスクトップ GUI 用 tkinter（Linux のみ。Windows/macOS は標準同梱）
+if [ "$(uname)" = "Linux" ] && ! python3 -c "import tkinter" &>/dev/null; then
+    echo "      GUI 用に python3-tk をインストール..."
+    apt-get install -y python3-tk 2>/dev/null || \
+    echo "      （python3-tk のインストールに失敗。gui.py を使わなければ無視可）"
+fi
+
 # npm 依存関係
 echo "[4/4] Viewer の npm パッケージをインストール中..."
 cd viewer && npm install --silent
@@ -37,5 +44,6 @@ echo ""
 echo "=== セットアップ完了 ==="
 echo ""
 echo "使い方:"
-echo "  GLB生成:  python pipeline.py --type barrel --pieces 20 --seed 1 --out output/barrel.glb"
-echo "  ビューア: cd viewer && npm run dev"
+echo "  GLB生成:    python pipeline.py --type barrel --pieces 20 --seed 1 --out output/barrel.glb"
+echo "  GUI:        python gui.py"
+echo "  ビューア:   cd viewer && npm run dev"

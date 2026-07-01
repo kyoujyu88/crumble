@@ -4,6 +4,7 @@ import { GLBLoader } from './GLBLoader.js';
 import { PhysicsWorld } from './PhysicsWorld.js';
 import { DestructionController } from './DestructionController.js';
 import { Overlay } from './ui/Overlay.js';
+import { ControlPanel } from './ui/ControlPanel.js';
 
 // ---------- 初期化 ----------
 const sceneSetup = new SceneSetup(document.getElementById('canvas'));
@@ -14,29 +15,56 @@ const loader = new GLBLoader();
 
 let destruction = null;
 let overlay = null;
+let controlPanel = null;
 let currentModel = null;
+let currentSource = null;
 
 // URLパラメータからGLBパスを取得（デフォルト: output/barrel.glb）
-const defaultGlb = new URLSearchParams(location.search).get('glb') ?? '/output/barrel.glb';
+const glbParam = new URLSearchParams(location.search).get('glb');
+const defaultGlb = glbParam ?? '/output/barrel.glb';
+// ?glb= をユーザーが明示したか（明示時は読み込み失敗を「エラー」として扱う）
+const glbIsUserSpecified = glbParam !== null;
 
 // ---------- GLB 読み込み ----------
-async function loadGLB(source) {
-  // 既存モデルを削除
-  if (currentModel) {
-    sceneSetup.scene.remove(currentModel);
-    physics.reset();
-  }
+// keepParams: パネルで調整した物理値を引き継ぐ / autoBreak: 読み込み後に自動破壊
+async function loadGLB(source, { keepParams = false, autoBreak = false, isDefault = false } = {}) {
+  // パネルの現在値を退避（再ロードで引き継ぐ場合）
+  const carriedParams = keepParams && controlPanel ? controlPanel.getValues() : null;
 
   let loaded;
   try {
     loaded = await loader.load(source);
   } catch (err) {
-    showError(`GLB 読み込みエラー: ${err.message}<br><br>
-      <small>?glb=path/to/file.glb でパスを指定するか、GLB をドロップしてください</small>`);
+    // 初回のデフォルトGLBが無いのは「異常」ではなく初回状態なので、
+    // 赤いエラーではなく案内バナーを出す（既存モデルは消さない）。
+    if (isDefault) {
+      showHint(
+        'GLB をドラッグ＆ドロップ、または '
+        + '<code>?glb=path/to/file.glb</code> で読み込めます。<br>'
+        + 'まだ生成していない場合は<br>'
+        + '<code>python pipeline.py --type barrel --out output/barrel.glb</code><br>'
+        + 'で作成してください。'
+      );
+    } else {
+      showError(`GLB 読み込みエラー: ${err.message}<br><br>
+        <small>?glb=path/to/file.glb でパスを指定するか、GLB をドロップしてください</small>`);
+    }
     return;
   }
 
+  // 読み込み成功が確定してから既存モデルを差し替える
+  if (currentModel) {
+    sceneSetup.scene.remove(currentModel);
+    physics.reset();
+  }
+
+  clearHint();
+  currentSource = source;
   const { scene: model, metadata, intactMesh, shardsGroup } = loaded;
+
+  // 退避した物理値を上書き反映
+  if (carriedParams) Object.assign(metadata, carriedParams);
+
   currentModel = model;
   sceneSetup.scene.add(model);
 
@@ -69,6 +97,19 @@ async function loadGLB(source) {
     overlay = new Overlay(document.getElementById('overlay'), metadata);
   }
 
+  // パラメータ調整パネル
+  if (!controlPanel) {
+    controlPanel = new ControlPanel(document.getElementById('controls'), {
+      onUpdate: () => overlay && overlay.refresh(),
+      onRebreak: async () => {
+        if (currentSource) await loadGLB(currentSource, { keepParams: true, autoBreak: true });
+      },
+    });
+  }
+  controlPanel.bind(metadata);
+
+  if (autoBreak && destruction) destruction.forceBreakFromTop();
+
   console.log('[main] GLB 読み込み完了:', metadata);
 }
 
@@ -82,8 +123,8 @@ sceneSetup.startRenderLoop((deltaMs) => {
 // ---------- R キーでリセット ----------
 window.addEventListener('keydown', async (e) => {
   if (e.key === 'r' || e.key === 'R') {
-    if (currentModel) {
-      await loadGLB(defaultGlb);
+    if (currentSource) {
+      await loadGLB(currentSource);
     }
   }
 });
@@ -118,5 +159,19 @@ function showError(html) {
   setTimeout(() => div.remove(), 6000);
 }
 
+// ---------- 案内表示（初回・GLB未指定） ----------
+let hintEl = null;
+function showHint(html) {
+  if (!hintEl) {
+    hintEl = document.createElement('div');
+    hintEl.className = 'hint-banner';
+    document.getElementById('app').appendChild(hintEl);
+  }
+  hintEl.innerHTML = html;
+}
+function clearHint() {
+  if (hintEl) { hintEl.remove(); hintEl = null; }
+}
+
 // ---------- 初回ロード ----------
-await loadGLB(defaultGlb);
+await loadGLB(defaultGlb, { isDefault: !glbIsUserSpecified });
