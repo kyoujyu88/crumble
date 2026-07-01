@@ -6,6 +6,10 @@
 プレフラクチャ済みの **GLB ファイル**として書き出すツール。
 **重要**: 破壊はランタイム計算ではなく「プレフラクチャ」方式（事前分割）。
 
+さらに、この破壊技術を製品化した **ARゲーム「Crumble Smash」**（`viewer/game.html`）を同梱。
+WebXR（immersive-ar + hit-test）で現実の床にオブジェクトを配置してタップ破壊する
+アーケードゲーム。非対応端末では 3D フォールバックモードで動作する。
+
 ## 技術スタック
 
 | レイヤー | 技術 |
@@ -87,6 +91,21 @@ cd viewer && npm run dev
 #   →「この設定で壊し直す」で同じモデルを新パラメータで再破壊
 ```
 
+### ARゲーム「Crumble Smash」
+
+```bash
+cd viewer && npm run dev -- --host
+# PC:     http://localhost:5173/game.html （3Dモード）
+# スマホ: https でアクセスすると AR モード選択可（WebXR は https 必須）
+```
+
+- タップでオブジェクト破壊。連続破壊でチェイン（倍率 最大×8）→ フィーバータイム
+- 8レベル進行制（目標スコアで★1〜3、★1で次レベル解放）
+- コイン経済 + ショップ: パック解放（コイン）とプレミアムパス/コインパック（IAPスタブ）
+- セーブは localStorage（`crumble_smash_save_v1`）
+- 破壊オブジェクトは Blender/GLB 不要のランタイム手続き生成（`Destructibles.js`）。
+  パイプラインと同じ「intact + プレフラクチャ破片」構造・種別プロファイル準拠
+
 ### テスト実行
 
 ```bash
@@ -162,16 +181,26 @@ crumble/
 │   │   ├── voronoi_cell.py        # Voronoi フラクチャ（Cell Fracture アドオン）
 │   │   └── glass_crack.py         # 放射状クラック（フェーズ3）
 │   └── export_glb.py              # GLB エクスポート + メタデータ
-├── viewer/                        # three.js + Rapier Webビューア
+├── viewer/                        # three.js + Rapier Webビューア + ARゲーム
+│   ├── index.html                 # ビューア
+│   ├── game.html                  # ARゲーム「Crumble Smash」
 │   └── src/
-│       ├── main.js                # エントリ（ドラッグ＆ドロップ対応）
+│       ├── main.js                # ビューアエントリ（ドラッグ＆ドロップ対応）
 │       ├── SceneSetup.js          # レンダラー・カメラ・ライト
 │       ├── GLBLoader.js           # GLB 読み込み・シーングラフ解析
 │       ├── PhysicsWorld.js        # Rapier 物理ワールド管理
 │       ├── DestructionController.js  # クリック → 破壊ロジック
-│       └── ui/                    # HUD オーバーレイ + パラメータ調整パネル
-│           ├── Overlay.js         # 種別・破片数などの情報表示
-│           └── ControlPanel.js    # 物理パラメータのリアルタイム調整
+│       ├── ui/                    # ビューア UI（Overlay / ControlPanel）
+│       └── game/                  # ARゲーム本体
+│           ├── main.js            # エントリ（モード分岐・レンダーループ）
+│           ├── ARSession.js       # WebXR immersive-ar / hit-test / 配置
+│           ├── Destructibles.js   # ランタイム・プレフラクチャ生成（7種）
+│           ├── Game.js            # 状態機械・レベル・スコア・コンボ・フィーバー
+│           ├── GamePhysics.js     # Rapier（破片の寿命管理・上限制御）
+│           ├── Effects.js         # GPUパーティクル・スコアポップアップ
+│           ├── Sfx.js             # WebAudio 合成効果音 + ハプティクス
+│           ├── Economy.js         # コイン・パック解放・IAPスタブ・セーブ
+│           └── ui/                # GameUI.js + game.css（全画面 UI）
 ├── output/                        # 生成 GLB（.gitignore 対象）
 └── tests/                         # テストスクリプト
 ```

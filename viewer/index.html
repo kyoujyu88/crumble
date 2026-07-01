@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Crumble — 破壊可能3Dオブジェクト ビューア</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
   <link rel="stylesheet" href="/src/ui/styles.css" />
 </head>
 <body>
@@ -12,6 +13,10 @@
     <div id="overlay"></div>
     <div id="controls"></div>
     <div id="dropzone">GLB ファイルをここにドロップ</div>
+    <a id="game-link" href="/game.html"
+       style="position:fixed;bottom:14px;right:14px;z-index:20;background:linear-gradient(135deg,#ff6b35,#ff3d68);color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 18px;border-radius:999px;box-shadow:0 6px 20px rgba(255,80,80,.4);">
+      🎮 Crumble Smash で遊ぶ
+    </a>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>
