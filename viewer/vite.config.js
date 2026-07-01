@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
@@ -8,6 +9,12 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',  // top-level await のため
+    rollupOptions: {
+      input: {
+        viewer: resolve(import.meta.dirname, 'index.html'),
+        game: resolve(import.meta.dirname, 'game.html'),
+      },
+    },
   },
   server: {
     // output/ ディレクトリの GLB を直接参照できるよう親ディレクトリをルートに
